@@ -280,61 +280,81 @@ func (intro *IntroductionMessage) Handle(mc *gnet.MessageContext,
 	daemon interface{}) (err error) {
 	d := daemon.(*Daemon)
 	addr := mc.Addr
-	// Disconnect if this is a self connection (we have the same mirror value)
-	if intro.Mirror == d.Messages.Mirror {
-		logger.Info("Remote mirror value %v matches ours", intro.Mirror)
-		d.Pool.Pool.Disconnect(mc.Addr, ErrDisconnectSelf)
-		err = ErrDisconnectSelf
-	}
-	// Disconnect if not running the same version
-	if intro.Version != d.Config.Version {
-		logger.Info("%s has different version %d. Disconnecting.",
-			addr, intro.Version)
-		d.Pool.Pool.Disconnect(mc.Addr, ErrDisconnectInvalidVersion)
-		err = ErrDisconnectInvalidVersion
-	} else {
+
+	for {
+		// Disconnect if this is a self connection (we have the same mirror value)
+		if intro.Mirror == d.Messages.Mirror {
+			logger.Info("Remote mirror value %v matches ours", intro.Mirror)
+			d.Pool.Pool.Disconnect(mc.Addr, ErrDisconnectSelf)
+			err = ErrDisconnectSelf
+			break
+		}
+
+		// Disconnect if not running the same version
+		if intro.Version != d.Config.Version {
+			logger.Info("%s has different version %d. Disconnecting.",
+				addr, intro.Version)
+			d.Pool.Pool.Disconnect(mc.Addr, ErrDisconnectInvalidVersion)
+			err = ErrDisconnectInvalidVersion
+			break
+		}
+
 		logger.Info("%s verified for version %d", addr, intro.Version)
-	}
 
-	// only solicited connection can be added to exchange peer list, cause accepted
-	// connection may not have incomming  port.
-	ip, port, err := SplitAddr(mc.Addr)
-	if err != nil {
-		// This should never happen, but the program should still work if it
-		// does.
-		logger.Error("Invalid Addr() for connection: %s", mc.Addr)
-		d.Pool.Pool.Disconnect(intro.c.Addr, ErrDisconnectOtherError)
-		err = ErrDisconnectOtherError
-	}
-
-	if port == intro.Port {
-		if err := d.Peers.Peers.SetPeerHasInPort(mc.Addr, true); err != nil {
-			logger.Error("Failed to set peer hasInPort statue, %v", err)
-		}
-	} else {
-		_, err = d.Peers.Peers.AddPeer(fmt.Sprintf("%s:%d", ip, intro.Port))
+		// only solicited connection can be added to exchange peer list, cause accepted
+		// connection may not have incomming  port.
+		ip, port, err := SplitAddr(mc.Addr)
 		if err != nil {
-			logger.Error("Failed to add peer: %v", err)
+			// This should never happen, but the program should still work if it
+			// does.
+			logger.Error("Invalid Addr() for connection: %s", mc.Addr)
+			d.Pool.Pool.Disconnect(intro.c.Addr, ErrDisconnectOtherError)
+			err = ErrDisconnectOtherError
+			break
 		}
-	}
 
-	// Disconnect if connected twice to the same peer (judging by ip:mirror)
-	knownPort, exists := d.getMirrorPort(addr, intro.Mirror)
-	if exists {
-		logger.Info("%s is already connected on port %d", addr, knownPort)
-		d.Pool.Pool.Disconnect(mc.Addr, ErrDisconnectConnectedTwice)
-		err = ErrDisconnectConnectedTwice
+		if port == intro.Port {
+			if int(port) != d.Config.Port {
+				logger.Error("%s has wrong port. Disconnection.", addr)
+				d.Pool.Pool.Disconnect(intro.c.Addr, ErrDisconnectWrongPort)
+				err = ErrDisconnectWrongPort
+				break
+			}
+
+			if err := d.Peers.Peers.SetPeerHasInPort(mc.Addr, true); err != nil {
+				logger.Error("Failed to set peer hasInPort statue, %v", err)
+			}
+		} else {
+			_, err = d.Peers.Peers.AddPeer(fmt.Sprintf("%s:%d", ip, intro.Port))
+			if err != nil {
+				logger.Error("Failed to add peer: %v", err)
+			}
+		}
+
+		// Disconnect if connected twice to the same peer (judging by ip:mirror)
+		knownPort, exists := d.getMirrorPort(addr, intro.Mirror)
+		if exists {
+			logger.Info("%s is already connected on port %d", addr, knownPort)
+			d.Pool.Pool.Disconnect(mc.Addr, ErrDisconnectConnectedTwice)
+			err = ErrDisconnectConnectedTwice
+			break
+		}
+		break
 	}
 
 	intro.valid = (err == nil)
 	intro.c = mc
-	if err == nil {
-		err = d.recordMessageEvent(intro, mc)
-		d.Peers.Peers.ResetRetryTimes(mc.Addr)
-	} else {
+	if err != nil {
+	}
+
+	if err != nil {
 		d.Peers.Peers.IncreaseRetryTimes(mc.Addr)
 		d.expectingIntroductions.Remove(mc.Addr)
+		return
 	}
+
+	err = d.recordMessageEvent(intro, mc)
+	d.Peers.Peers.ResetRetryTimes(mc.Addr)
 	return
 }
 
