@@ -303,8 +303,8 @@ func (intro *IntroductionMessage) Handle(mc *gnet.MessageContext,
 
 		// Disconnect if wrong port
 		if int(intro.Port) != d.Config.Port {
-			logger.Error("%s has wrong port. Disconnection.", addr)
-			d.Pool.Pool.Disconnect(intro.c.Addr, ErrDisconnectWrongPort)
+			logger.Error("%s has wrong node port:%d. Disconnection.", mc.Addr, intro.Port)
+			d.Pool.Pool.Disconnect(mc.Addr, ErrDisconnectWrongPort)
 			err = ErrDisconnectWrongPort
 			break
 		}
@@ -316,7 +316,7 @@ func (intro *IntroductionMessage) Handle(mc *gnet.MessageContext,
 			// This should never happen, but the program should still work if it
 			// does.
 			logger.Error("Invalid Addr() for connection: %s", mc.Addr)
-			d.Pool.Pool.Disconnect(intro.c.Addr, ErrDisconnectOtherError)
+			d.Pool.Pool.Disconnect(mc.Addr, ErrDisconnectOtherError)
 			err = ErrDisconnectOtherError
 			break
 		}
@@ -345,8 +345,6 @@ func (intro *IntroductionMessage) Handle(mc *gnet.MessageContext,
 
 	intro.valid = (err == nil)
 	intro.c = mc
-	if err != nil {
-	}
 
 	if err != nil {
 		d.Peers.Peers.IncreaseRetryTimes(mc.Addr)
