@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"strconv"
+	"strings"
 
 	//"github.com/skycoin/skycoin/src/daemon/gnet"
 	"github.com/skycoin/skycoin/src/daemon/gnet"
@@ -220,7 +222,30 @@ func (gpm *GivePeersMessage) Process(d *Daemon) {
 			logger.Debug("\t%s", p)
 		}
 	}
-	d.Peers.Peers.AddPeers(peers)
+
+	var ps []string
+	// checks if the peer has right port number
+	for _, p := range peers {
+		ps := strings.Split(p, ":")
+		if len(ps) != 2 {
+			logger.Warning("Invalid peer: %v, should in format of ip:port", p)
+			continue
+		}
+
+		port, err := strconv.Atoi(ps[2])
+		if err != nil {
+			logger.Warning("Invalid peer: %v, %v", p, err)
+			continue
+		}
+
+		if port != d.Config.Port {
+			logger.Warning("Invalid peer: %v, wrong port number", p)
+			continue
+		}
+		ps = append(ps, p)
+	}
+
+	d.Peers.Peers.AddPeers(ps)
 }
 
 // IntroductionMessage jan IntroductionMessage is sent on first connect by both parties
