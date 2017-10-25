@@ -28,6 +28,7 @@ type PeersConfig struct {
 	AllowLocalhost bool
 	// Disable exchanging of peers.  Peers are still loaded from disk
 	Disabled bool
+	Port     int //  node port
 }
 
 // NewPeersConfig creates peers config
@@ -62,7 +63,7 @@ func NewPeers(c PeersConfig) (*Peers, error) {
 		Config: c,
 	}
 
-	peers := pex.NewPex(ps.Config.Max)
+	peers := pex.NewPex(ps.Config.Max, ps.Config.Port)
 	err := peers.Load(ps.Config.DataDirectory)
 	if err != nil {
 		if !os.IsNotExist(err) {
