@@ -228,18 +228,18 @@ func (gpm *GivePeersMessage) Process(d *Daemon) {
 	for _, p := range peers {
 		ps := strings.Split(p, ":")
 		if len(ps) != 2 {
-			logger.Warning("Invalid peer: %v, should in format of ip:port", p)
+			logger.Info("Invalid peer: %v, should in format of ip:port", p)
 			continue
 		}
 
 		port, err := strconv.Atoi(ps[1])
 		if err != nil {
-			logger.Warning("Invalid peer: %v, %v", p, err)
+			logger.Info("Invalid peer: %v, %v", p, err)
 			continue
 		}
 
 		if port != d.Config.Port {
-			logger.Warning("Invalid peer: %v, wrong port number", p)
+			logger.Info("Invalid peer: %v, wrong port number", p)
 			continue
 		}
 		ps = append(ps, p)
@@ -303,7 +303,7 @@ func (intro *IntroductionMessage) Handle(mc *gnet.MessageContext,
 
 		// Disconnect if wrong port
 		if int(intro.Port) != d.Config.Port {
-			logger.Error("%s has wrong node port:%d. Disconnection.", mc.Addr, intro.Port)
+			logger.Info("%s has wrong node port:%d. Disconnection.", mc.Addr, intro.Port)
 			d.Pool.Pool.Disconnect(mc.Addr, ErrDisconnectWrongPort)
 			err = ErrDisconnectWrongPort
 			break
