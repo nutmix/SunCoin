@@ -232,7 +232,7 @@ func (gpm *GivePeersMessage) Process(d *Daemon) {
 			continue
 		}
 
-		port, err := strconv.Atoi(ps[2])
+		port, err := strconv.Atoi(ps[1])
 		if err != nil {
 			logger.Warning("Invalid peer: %v, %v", p, err)
 			continue
@@ -301,6 +301,14 @@ func (intro *IntroductionMessage) Handle(mc *gnet.MessageContext,
 
 		logger.Info("%s verified for version %d", addr, intro.Version)
 
+		// Disconnect if wrong port
+		if int(intro.Port) != d.Config.Port {
+			logger.Error("%s has wrong port. Disconnection.", addr)
+			d.Pool.Pool.Disconnect(intro.c.Addr, ErrDisconnectWrongPort)
+			err = ErrDisconnectWrongPort
+			break
+		}
+
 		// only solicited connection can be added to exchange peer list, cause accepted
 		// connection may not have incomming  port.
 		ip, port, err := SplitAddr(mc.Addr)
@@ -314,13 +322,6 @@ func (intro *IntroductionMessage) Handle(mc *gnet.MessageContext,
 		}
 
 		if port == intro.Port {
-			if int(port) != d.Config.Port {
-				logger.Error("%s has wrong port. Disconnection.", addr)
-				d.Pool.Pool.Disconnect(intro.c.Addr, ErrDisconnectWrongPort)
-				err = ErrDisconnectWrongPort
-				break
-			}
-
 			if err := d.Peers.Peers.SetPeerHasInPort(mc.Addr, true); err != nil {
 				logger.Error("Failed to set peer hasInPort statue, %v", err)
 			}
