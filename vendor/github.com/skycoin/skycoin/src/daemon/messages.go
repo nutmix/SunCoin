@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	//"github.com/skycoin/skycoin/src/daemon/gnet"
 	"github.com/skycoin/skycoin/src/daemon/gnet"
 	"github.com/skycoin/skycoin/src/daemon/pex"
 	"github.com/skycoin/skycoin/src/util/utc"
@@ -204,8 +203,7 @@ func (gpm *GivePeersMessage) GetPeers() []string {
 }
 
 // Handle handle message
-func (gpm *GivePeersMessage) Handle(mc *gnet.MessageContext,
-	daemon interface{}) error {
+func (gpm *GivePeersMessage) Handle(mc *gnet.MessageContext, daemon interface{}) error {
 	gpm.c = mc
 	return daemon.(*Daemon).recordMessageEvent(gpm, mc)
 }
@@ -217,10 +215,7 @@ func (gpm *GivePeersMessage) Process(d *Daemon) {
 	}
 	peers := gpm.GetPeers()
 	if len(peers) != 0 {
-		logger.Debug("Got these peers via PEX:")
-		for _, p := range peers {
-			logger.Debug("\t%s", p)
-		}
+		logger.Debug("Got these peers via PEX: %s", strings.Join(peers, ", "))
 	}
 
 	var ps []string
@@ -264,8 +259,7 @@ type IntroductionMessage struct {
 }
 
 // NewIntroductionMessage creates introduction message
-func NewIntroductionMessage(mirror uint32, version int32,
-	port uint16) *IntroductionMessage {
+func NewIntroductionMessage(mirror uint32, version int32, port uint16) *IntroductionMessage {
 	return &IntroductionMessage{
 		Mirror:  mirror,
 		Version: version,
@@ -276,8 +270,7 @@ func NewIntroductionMessage(mirror uint32, version int32,
 // Handle Responds to an gnet.Pool event. We implement Handle() here because we
 // need to control the DisconnectReason sent back to gnet.  We still implement
 // Process(), where we do modifications that are not threadsafe
-func (intro *IntroductionMessage) Handle(mc *gnet.MessageContext,
-	daemon interface{}) (err error) {
+func (intro *IntroductionMessage) Handle(mc *gnet.MessageContext, daemon interface{}) (err error) {
 	d := daemon.(*Daemon)
 	addr := mc.Addr
 
@@ -394,15 +387,16 @@ type PingMessage struct {
 }
 
 // Handle implements the Messager interface
-func (ping *PingMessage) Handle(mc *gnet.MessageContext,
-	daemon interface{}) error {
+func (ping *PingMessage) Handle(mc *gnet.MessageContext, daemon interface{}) error {
 	ping.c = mc
 	return daemon.(*Daemon).recordMessageEvent(ping, mc)
 }
 
 // Process Sends a PongMessage to the sender of PingMessage
 func (ping *PingMessage) Process(d *Daemon) {
-	logger.Debug("Reply to ping from %s", ping.c.Addr)
+	if d.Config.LogPings {
+		logger.Debug("Reply to ping from %s", ping.c.Addr)
+	}
 	d.Pool.Pool.SendMessage(ping.c.Addr, &PongMessage{})
 }
 
@@ -411,10 +405,11 @@ type PongMessage struct {
 }
 
 // Handle handles message
-func (pong *PongMessage) Handle(mc *gnet.MessageContext,
-	daemon interface{}) error {
+func (pong *PongMessage) Handle(mc *gnet.MessageContext, daemon interface{}) error {
 	// There is nothing to do; gnet updates Connection.LastMessage internally
 	// when this is received
-	logger.Debug("Received pong from %s", mc.Addr)
+	if daemon.(*Daemon).Config.LogPings {
+		logger.Debug("Received pong from %s", mc.Addr)
+	}
 	return nil
 }
