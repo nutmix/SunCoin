@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
-	"strconv"
 	"strings"
 
 	"github.com/skycoin/skycoin/src/daemon/gnet"
@@ -217,30 +216,7 @@ func (gpm *GivePeersMessage) Process(d *Daemon) {
 	if len(peers) != 0 {
 		logger.Debug("Got these peers via PEX: %s", strings.Join(peers, ", "))
 	}
-
-	var ps []string
-	// checks if the peer has right port number
-	for _, p := range peers {
-		ss := strings.Split(p, ":")
-		if len(ss) != 2 {
-			logger.Info("Invalid peer: %v, should in format of ip:port", p)
-			continue
-		}
-
-		port, err := strconv.Atoi(ss[1])
-		if err != nil {
-			logger.Info("Invalid peer: %v, %v", p, err)
-			continue
-		}
-
-		if port != d.Config.Port {
-			logger.Info("Invalid peer: %v, wrong port number", p)
-			continue
-		}
-		ps = append(ps, p)
-	}
-
-	d.Peers.Peers.AddPeers(ps)
+	d.Peers.Peers.AddPeers(peers)
 }
 
 // IntroductionMessage jan IntroductionMessage is sent on first connect by both parties
@@ -273,80 +249,61 @@ func NewIntroductionMessage(mirror uint32, version int32, port uint16) *Introduc
 func (intro *IntroductionMessage) Handle(mc *gnet.MessageContext, daemon interface{}) (err error) {
 	d := daemon.(*Daemon)
 	addr := mc.Addr
-
-	for {
-		// Disconnect if this is a self connection (we have the same mirror value)
-		if intro.Mirror == d.Messages.Mirror {
-			logger.Info("Remote mirror value %v matches ours", intro.Mirror)
-			d.Pool.Pool.Disconnect(mc.Addr, ErrDisconnectSelf)
-			err = ErrDisconnectSelf
-			break
-		}
-
-		// Disconnect if not running the same version
-		if intro.Version != d.Config.Version {
-			logger.Info("%s has different version %d. Disconnecting.",
-				addr, intro.Version)
-			d.Pool.Pool.Disconnect(mc.Addr, ErrDisconnectInvalidVersion)
-			err = ErrDisconnectInvalidVersion
-			break
-		}
-
+	// Disconnect if this is a self connection (we have the same mirror value)
+	if intro.Mirror == d.Messages.Mirror {
+		logger.Info("Remote mirror value %v matches ours", intro.Mirror)
+		d.Pool.Pool.Disconnect(mc.Addr, ErrDisconnectSelf)
+		err = ErrDisconnectSelf
+	}
+	// Disconnect if not running the same version
+	if intro.Version != d.Config.Version {
+		logger.Info("%s has different version %d. Disconnecting.",
+			addr, intro.Version)
+		d.Pool.Pool.Disconnect(mc.Addr, ErrDisconnectInvalidVersion)
+		err = ErrDisconnectInvalidVersion
+	} else {
 		logger.Info("%s verified for version %d", addr, intro.Version)
+	}
 
-		// Disconnect if wrong port
-		if int(intro.Port) != d.Config.Port {
-			logger.Info("%s has wrong node port:%d. Disconnection.", mc.Addr, intro.Port)
-			d.Pool.Pool.Disconnect(mc.Addr, ErrDisconnectWrongPort)
-			err = ErrDisconnectWrongPort
-			break
+	// only solicited connection can be added to exchange peer list, cause accepted
+	// connection may not have incomming  port.
+	ip, port, err := SplitAddr(mc.Addr)
+	if err != nil {
+		// This should never happen, but the program should still work if it
+		// does.
+		logger.Error("Invalid Addr() for connection: %s", mc.Addr)
+		d.Pool.Pool.Disconnect(intro.c.Addr, ErrDisconnectOtherError)
+		err = ErrDisconnectOtherError
+	}
+
+	if port == intro.Port {
+		if err := d.Peers.Peers.SetPeerHasInPort(mc.Addr, true); err != nil {
+			logger.Error("Failed to set peer hasInPort statue, %v", err)
 		}
-
-		// only solicited connection can be added to exchange peer list, cause accepted
-		// connection may not have incomming  port.
-		ip, port, err := SplitAddr(mc.Addr)
+	} else {
+		_, err = d.Peers.Peers.AddPeer(fmt.Sprintf("%s:%d", ip, intro.Port))
 		if err != nil {
-			// This should never happen, but the program should still work if it
-			// does.
-			logger.Error("Invalid Addr() for connection: %s", mc.Addr)
-			d.Pool.Pool.Disconnect(mc.Addr, ErrDisconnectOtherError)
-			err = ErrDisconnectOtherError
-			break
+			logger.Error("Failed to add peer: %v", err)
 		}
+	}
 
-		if port == intro.Port {
-			if err := d.Peers.Peers.SetPeerHasInPort(mc.Addr, true); err != nil {
-				logger.Error("Failed to set peer hasInPort statue, %v", err)
-			}
-		} else {
-			_, err = d.Peers.Peers.AddPeer(fmt.Sprintf("%s:%d", ip, intro.Port))
-			if err != nil {
-				logger.Error("Failed to add peer: %v", err)
-			}
-		}
-
-		// Disconnect if connected twice to the same peer (judging by ip:mirror)
-		knownPort, exists := d.getMirrorPort(addr, intro.Mirror)
-		if exists {
-			logger.Info("%s is already connected on port %d", addr, knownPort)
-			d.Pool.Pool.Disconnect(mc.Addr, ErrDisconnectConnectedTwice)
-			err = ErrDisconnectConnectedTwice
-			break
-		}
-		break
+	// Disconnect if connected twice to the same peer (judging by ip:mirror)
+	knownPort, exists := d.getMirrorPort(addr, intro.Mirror)
+	if exists {
+		logger.Info("%s is already connected on port %d", addr, knownPort)
+		d.Pool.Pool.Disconnect(mc.Addr, ErrDisconnectConnectedTwice)
+		err = ErrDisconnectConnectedTwice
 	}
 
 	intro.valid = (err == nil)
 	intro.c = mc
-
-	if err != nil {
+	if err == nil {
+		err = d.recordMessageEvent(intro, mc)
+		d.Peers.Peers.ResetRetryTimes(mc.Addr)
+	} else {
 		d.Peers.Peers.IncreaseRetryTimes(mc.Addr)
 		d.expectingIntroductions.Remove(mc.Addr)
-		return
 	}
-
-	err = d.recordMessageEvent(intro, mc)
-	d.Peers.Peers.ResetRetryTimes(mc.Addr)
 	return
 }
 

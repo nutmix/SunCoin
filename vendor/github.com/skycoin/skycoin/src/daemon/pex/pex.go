@@ -455,16 +455,14 @@ type Pex struct {
 	// If false, localhost peers will be rejected from the peerlist
 	AllowLocalhost bool
 	maxPeers       int
-	port           int
 }
 
 // NewPex creates pex
-func NewPex(maxPeers, port int) *Pex {
+func NewPex(maxPeers int) *Pex {
 	return &Pex{
 		Peerlist:       &Peerlist{peers: make(map[string]*Peer, maxPeers)},
 		maxPeers:       maxPeers,
 		AllowLocalhost: false,
-		port:           port,
 	}
 }
 
@@ -581,28 +579,7 @@ func (px *Pex) Load(dir string) error {
 		return err
 	}
 
-	ps := make(map[string]*Peer)
-	for addr, p := range pl.peers {
-		ss := strings.Split(addr, ":")
-		if len(ss) != 2 {
-			logger.Info("Invalid peer: %v, must in format of ip:port", addr)
-			continue
-		}
-
-		port, err := strconv.Atoi(ss[1])
-		if err != nil {
-			logger.Info("Invalid peer: %v, %v", addr, err)
-			continue
-		}
-
-		if port != px.port {
-			logger.Info("Invalid peer: %v with wrong port: %v", addr, port)
-			continue
-		}
-		ps[addr] = p
-	}
-
-	px.Peerlist.peers = ps
+	px.Peerlist = pl
 	return nil
 }
 
