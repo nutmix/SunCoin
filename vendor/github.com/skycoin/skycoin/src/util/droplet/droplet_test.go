@@ -72,8 +72,8 @@ func TestFromString(t *testing.T) {
 			n: 123000456,
 		},
 		{
-			s: "100SKY",
-			e: errors.New("can't convert 100SKY to decimal"),
+			s: "100SUN",
+			e: errors.New("can't convert 100SUN to decimal"),
 		},
 		{
 			s: "",

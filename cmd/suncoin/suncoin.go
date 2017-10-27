@@ -24,12 +24,17 @@ import (
 	"github.com/skycoin/skycoin/src/util/cert"
 	"github.com/skycoin/skycoin/src/util/file"
 	"github.com/skycoin/skycoin/src/util/logging"
-	"github.com/skycoin/skycoin/src/wallet"
+	"github.com/skycoin/skycoin/src/visor"
 )
 
 var (
 	// Version node version which will be set when build wallet by LDFLAGS
-	Version    = "0.0.0"
+	Version = "0.20.3"
+	// Commit id
+	Commit = ""
+
+	help = false
+
 	logger     = logging.MustGetLogger("main")
 	logFormat  = "[suncoin.%{module}:%{level}] %{message}"
 	logModules = []string{
@@ -112,8 +117,8 @@ type Config struct {
 	// Logging
 	ColorLog bool
 	// This is the value registered with flag, it is converted to LogLevel after parsing
-	LogLevel string
-
+	LogLevel        string
+	DisablePingPong bool
 	// Wallets
 	// Defaults to ${DataDirectory}/wallets/
 	WalletDirectory string
@@ -146,6 +151,7 @@ type Config struct {
 }
 
 func (c *Config) register() {
+	flag.BoolVar(&help, "help", false, "Show help")
 	flag.BoolVar(&c.DisablePEX, "disable-pex", c.DisablePEX,
 		"disable PEX peer discovery")
 	flag.BoolVar(&c.DisableOutgoingConnections, "disable-outgoing",
@@ -194,8 +200,12 @@ func (c *Config) register() {
 		c.ProfileCPUFile, "where to write the cpu profile file")
 	flag.BoolVar(&c.HTTPProf, "http-prof", c.HTTPProf,
 		"Run the http profiling interface")
+	flag.StringVar(&c.LogLevel, "log-level", c.LogLevel,
+		"Choices are: debug, info, notice, warning, error, critical")
 	flag.BoolVar(&c.ColorLog, "color-log", c.ColorLog,
 		"Add terminal colors to log output")
+	flag.BoolVar(&c.DisablePingPong, "no-ping-log", false,
+		`disable "reply to ping" and "received pong" log messages`)
 	flag.BoolVar(&c.Logtofile, "logtofile", false, "log to file")
 
 	flag.StringVar(&c.GUIDirectory, "gui-dir", c.GUIDirectory,
@@ -225,8 +235,6 @@ func (c *Config) register() {
 	flag.BoolVar(&c.LocalhostOnly, "localhost-only", c.LocalhostOnly,
 		"Run on localhost and only connect to localhost peers")
 	flag.BoolVar(&c.Arbitrating, "arbitrating", c.Arbitrating, "Run node in arbitrating mode")
-
-	flag.StringVar(&c.DBPath, "dbname", "data.db", "boltdb file name")
 }
 
 var devConfig Config = Config{
@@ -263,6 +271,7 @@ var devConfig Config = Config{
 	RPCInterface:     true,
 	RPCInterfacePort: 7630,
 	RPCInterfaceAddr: "127.0.0.1",
+	RPCThreadNum:     5,
 
 	LaunchBrowser: true,
 	// Data directory holds app data -- defaults to ~/.suncoin
@@ -301,6 +310,10 @@ var devConfig Config = Config{
 func (c *Config) Parse() {
 	c.register()
 	flag.Parse()
+	if help {
+		flag.Usage()
+		os.Exit(0)
+	}
 	c.postProcess()
 }
 
@@ -341,7 +354,9 @@ func (c *Config) postProcess() {
 		c.WalletDirectory = filepath.Join(c.DataDirectory, "wallets/")
 	}
 
-	c.DBPath = filepath.Join(c.DataDirectory, c.DBPath)
+	if c.DBPath == "" {
+		c.DBPath = filepath.Join(c.DataDirectory, "data.db")
+	}
 }
 
 func panicIfError(err error, msg string, args ...interface{}) {
@@ -448,7 +463,6 @@ func configureDaemon(c *Config) daemon.Config {
 	dc := daemon.NewConfig()
 	dc.Peers.DataDirectory = c.DataDirectory
 	dc.Peers.Disabled = c.DisablePEX
-	dc.Peers.Port = c.Port
 	dc.Daemon.DisableOutgoingConnections = c.DisableOutgoingConnections
 	dc.Daemon.DisableIncomingConnections = c.DisableIncomingConnections
 	dc.Daemon.DisableNetworking = c.DisableNetworking
@@ -457,6 +471,7 @@ func configureDaemon(c *Config) daemon.Config {
 	dc.Daemon.LocalhostOnly = c.LocalhostOnly
 	dc.Daemon.OutgoingMax = c.MaxConnections
 	dc.Daemon.DataDirectory = c.DataDirectory
+	dc.Daemon.LogPings = !c.DisablePingPong
 
 	daemon.DefaultConnections = DefaultConnections
 
@@ -476,6 +491,11 @@ func configureDaemon(c *Config) daemon.Config {
 	dc.Visor.Config.GenesisCoinVolume = GenesisCoinVolume
 	dc.Visor.Config.DBPath = c.DBPath
 	dc.Visor.Config.Arbitrating = c.Arbitrating
+	dc.Visor.Config.WalletDirectory = c.WalletDirectory
+	dc.Visor.Config.BuildInfo = visor.BuildInfo{
+		Version: Version,
+		Commit:  Commit,
+	}
 	return dc
 }
 
@@ -518,8 +538,6 @@ func Run(c *Config) {
 	// Watch for SIGUSR1
 	go catchDebug()
 
-	gui.InitWalletRPC(c.WalletDirectory, wallet.OptCoin("sun"))
-
 	dconf := configureDaemon(c)
 	d, err := daemon.NewDaemon(dconf)
 	if err != nil {
@@ -536,15 +554,14 @@ func Run(c *Config) {
 	var rpc *webrpc.WebRPC
 	// start the webrpc
 	if c.RPCInterface {
-		rpc, err = webrpc.New(
-			fmt.Sprintf("%v:%v", c.RPCInterfaceAddr, c.RPCInterfacePort),
-			webrpc.ChanBuffSize(1000),
-			webrpc.ThreadNum(c.RPCThreadNum),
-			webrpc.Gateway(d.Gateway))
+		rpcAddr := fmt.Sprintf("%v:%v", c.RPCInterfaceAddr, c.RPCInterfacePort)
+		rpc, err := webrpc.New(rpcAddr, d.Gateway)
 		if err != nil {
 			logger.Error("%v", err)
 			return
 		}
+		rpc.ChanBuffSize = 1000
+		rpc.WorkerNum = c.RPCThreadNum
 
 		go func() {
 			errC <- rpc.Run()
