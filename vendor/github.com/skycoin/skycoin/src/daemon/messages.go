@@ -223,13 +223,13 @@ func (gpm *GivePeersMessage) Process(d *Daemon) {
 	var ps []string
 	// checks if the peer has right port number
 	for _, p := range peers {
-		ps := strings.Split(p, ":")
-		if len(ps) != 2 {
+		ss := strings.Split(p, ":")
+		if len(ss) != 2 {
 			logger.Info("Invalid peer: %v, should in format of ip:port", p)
 			continue
 		}
 
-		port, err := strconv.Atoi(ps[1])
+		port, err := strconv.Atoi(ss[1])
 		if err != nil {
 			logger.Info("Invalid peer: %v, %v", p, err)
 			continue
@@ -241,7 +241,7 @@ func (gpm *GivePeersMessage) Process(d *Daemon) {
 		}
 		ps = append(ps, p)
 	}
-
+	fmt.Println("add peers:", ps)
 	d.Peers.Peers.AddPeers(ps)
 }
 

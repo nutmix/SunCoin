@@ -561,17 +561,20 @@ func (dm *Daemon) connectToRandomPeer() {
 	}
 	// Make a connection to a random (public) peer
 	peers := dm.Peers.Peers.RandomPublic(0)
+	logger.Warning("Connect to random peers:")
 	for _, p := range peers {
 		// check if the peer has public port
 		if p.HasIncomePort {
 			// try to connect the peer if it's ip:mirror does not exist
 			if _, exist := dm.getMirrorPort(p.Addr, dm.Messages.Mirror); !exist {
+				fmt.Println(p.Addr)
 				dm.connectToPeer(p)
 				continue
 			}
 		} else {
 			// try to connect to the peer if we don't know whether the peer have public port
 			dm.connectToPeer(p)
+			fmt.Println(p.Addr)
 		}
 	}
 
