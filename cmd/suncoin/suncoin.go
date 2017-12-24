@@ -576,7 +576,7 @@ func Run(c *Config) {
 
 	db, err := visor.OpenDB(dconf.Visor.Config.DBPath)
 	if err != nil {
-		logger.Error("Database failed to open: %v. Is another skycoin instance running?", err)
+		logger.Error("Database failed to open: %v. Is another suncoin instance running?", err)
 		return
 	}
 
