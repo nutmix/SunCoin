@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
-	"strconv"
 	"strings"
 
 	"github.com/skycoin/skycoin/src/daemon/gnet"
@@ -154,11 +153,11 @@ func (gpm *GetPeersMessage) Handle(mc *gnet.MessageContext,
 
 // Process Notifies the Pex instance that peers were requested
 func (gpm *GetPeersMessage) Process(d *Daemon) {
-	if d.Peers.Config.Disabled {
+	if d.Pex.Config.Disabled {
 		return
 	}
 
-	peers := d.Peers.Peers.RandomExchgPublic(d.Peers.Config.ReplyCount)
+	peers := d.Pex.RandomExchangeable(d.Pex.Config.ReplyCount)
 	if len(peers) == 0 {
 		logger.Debug("We have no peers to send in reply")
 		return
@@ -167,7 +166,9 @@ func (gpm *GetPeersMessage) Process(d *Daemon) {
 	// logger.Info(fmt.Sprintf("give exchange peers:%+v", peers))
 
 	m := NewGivePeersMessage(peers)
-	d.Pool.Pool.SendMessage(gpm.addr, m)
+	if err := d.Pool.Pool.SendMessage(gpm.addr, m); err != nil {
+		logger.Error("Send GivePeersMessage to %s failed: %v", gpm.addr, err)
+	}
 }
 
 // GivePeersMessage sent in response to GetPeersMessage
@@ -177,7 +178,7 @@ type GivePeersMessage struct {
 }
 
 // NewGivePeersMessage []*pex.Peer is converted to []IPAddr for binary transmission
-func NewGivePeersMessage(peers []*pex.Peer) *GivePeersMessage {
+func NewGivePeersMessage(peers []pex.Peer) *GivePeersMessage {
 	ipaddrs := make([]IPAddr, 0, len(peers))
 	for _, ps := range peers {
 		ipaddr, err := NewIPAddr(ps.Addr)
@@ -210,39 +211,13 @@ func (gpm *GivePeersMessage) Handle(mc *gnet.MessageContext, daemon interface{})
 
 // Process Notifies the Pex instance that peers were received
 func (gpm *GivePeersMessage) Process(d *Daemon) {
-	if d.Peers.Config.Disabled {
+	if d.Pex.Config.Disabled {
 		return
 	}
 	peers := gpm.GetPeers()
-	if len(peers) != 0 {
-		logger.Debug("Got these peers via PEX:")
-		for _, p := range peers {
-			logger.Debug("\t%s", p)
-		}
-	}
-	var ps []string
-	// checks if the peer has right port number
-	for _, p := range peers {
-		ss := strings.Split(p, ":")
-		if len(ss) != 2 {
-			logger.Info("Invalid peer: %v, should in format of ip:port", p)
-			continue
-		}
+	logger.Debug("Got these peers via PEX: %s", strings.Join(peers, ", "))
 
-		port, err := strconv.Atoi(ss[1])
-		if err != nil {
-			logger.Info("Invalid peer: %v, %v", p, err)
-			continue
-		}
-
-		if port != d.Config.Port {
-			logger.Info("Invalid peer: %v, wrong port number", p)
-			continue
-		}
-		ps = append(ps, p)
-	}
-	fmt.Println("add peers:", ps)
-	d.Peers.Peers.AddPeers(ps)
+	d.Pex.AddPeers(peers)
 }
 
 // IntroductionMessage jan IntroductionMessage is sent on first connect by both parties
@@ -272,37 +247,27 @@ func NewIntroductionMessage(mirror uint32, version int32, port uint16) *Introduc
 // Handle Responds to an gnet.Pool event. We implement Handle() here because we
 // need to control the DisconnectReason sent back to gnet.  We still implement
 // Process(), where we do modifications that are not threadsafe
-func (intro *IntroductionMessage) Handle(mc *gnet.MessageContext, daemon interface{}) (err error) {
+func (intro *IntroductionMessage) Handle(mc *gnet.MessageContext, daemon interface{}) error {
 	d := daemon.(*Daemon)
-	addr := mc.Addr
 
-	for {
+	err := func() error {
 		// Disconnect if this is a self connection (we have the same mirror value)
 		if intro.Mirror == d.Messages.Mirror {
 			logger.Info("Remote mirror value %v matches ours", intro.Mirror)
 			d.Pool.Pool.Disconnect(mc.Addr, ErrDisconnectSelf)
-			err = ErrDisconnectSelf
-			break
+			return ErrDisconnectSelf
+
 		}
 
 		// Disconnect if not running the same version
 		if intro.Version != d.Config.Version {
 			logger.Info("%s has different version %d. Disconnecting.",
-				addr, intro.Version)
+				mc.Addr, intro.Version)
 			d.Pool.Pool.Disconnect(mc.Addr, ErrDisconnectInvalidVersion)
-			err = ErrDisconnectInvalidVersion
-			break
+			return ErrDisconnectInvalidVersion
 		}
 
-		logger.Info("%s verified for version %d", addr, intro.Version)
-
-		// Disconnect if wrong port
-		if int(intro.Port) != d.Config.Port {
-			logger.Info("%s has wrong node port:%d. Disconnection.", mc.Addr, intro.Port)
-			d.Pool.Pool.Disconnect(mc.Addr, ErrDisconnectWrongPort)
-			err = ErrDisconnectWrongPort
-			break
-		}
+		logger.Info("%s verified for version %d", mc.Addr, intro.Version)
 
 		// only solicited connection can be added to exchange peer list, cause accepted
 		// connection may not have incomming  port.
@@ -312,44 +277,41 @@ func (intro *IntroductionMessage) Handle(mc *gnet.MessageContext, daemon interfa
 			// does.
 			logger.Error("Invalid Addr() for connection: %s", mc.Addr)
 			d.Pool.Pool.Disconnect(mc.Addr, ErrDisconnectOtherError)
-			err = ErrDisconnectOtherError
-			break
+			return ErrDisconnectOtherError
 		}
 
 		if port == intro.Port {
-			if err := d.Peers.Peers.SetPeerHasInPort(mc.Addr, true); err != nil {
-				logger.Error("Failed to set peer hasInPort statue, %v", err)
+			if err := d.Pex.SetHasIncomingPort(mc.Addr, true); err != nil {
+				logger.Error("Failed to set peer has incoming port status, %v", err)
 			}
 		} else {
-			_, err = d.Peers.Peers.AddPeer(fmt.Sprintf("%s:%d", ip, intro.Port))
-			if err != nil {
+			if err := d.Pex.AddPeer(fmt.Sprintf("%s:%d", ip, intro.Port)); err != nil {
 				logger.Error("Failed to add peer: %v", err)
 			}
 		}
 
 		// Disconnect if connected twice to the same peer (judging by ip:mirror)
-		knownPort, exists := d.getMirrorPort(addr, intro.Mirror)
+		knownPort, exists := d.getMirrorPort(mc.Addr, intro.Mirror)
 		if exists {
-			logger.Info("%s is already connected on port %d", addr, knownPort)
+			logger.Info("%s is already connected on port %d", mc.Addr, knownPort)
 			d.Pool.Pool.Disconnect(mc.Addr, ErrDisconnectConnectedTwice)
-			err = ErrDisconnectConnectedTwice
-			break
+			return ErrDisconnectConnectedTwice
 		}
-		break
-	}
+		return nil
+	}()
 
 	intro.valid = (err == nil)
 	intro.c = mc
 
 	if err != nil {
-		d.Peers.Peers.IncreaseRetryTimes(mc.Addr)
+		d.Pex.IncreaseRetryTimes(mc.Addr)
 		d.expectingIntroductions.Remove(mc.Addr)
-		return
+		return err
 	}
 
 	err = d.recordMessageEvent(intro, mc)
-	d.Peers.Peers.ResetRetryTimes(mc.Addr)
-	return
+	d.Pex.ResetRetryTimes(mc.Addr)
+	return err
 }
 
 // Process an event queued by Handle()
@@ -399,7 +361,9 @@ func (ping *PingMessage) Process(d *Daemon) {
 	if d.Config.LogPings {
 		logger.Debug("Reply to ping from %s", ping.c.Addr)
 	}
-	d.Pool.Pool.SendMessage(ping.c.Addr, &PongMessage{})
+	if err := d.Pool.Pool.SendMessage(ping.c.Addr, &PongMessage{}); err != nil {
+		logger.Error("Send PongMessage to %s failed: %v", ping.c.Addr, err)
+	}
 }
 
 // PongMessage Sent in reply to a PingMessage.  No action is taken when this is received.
