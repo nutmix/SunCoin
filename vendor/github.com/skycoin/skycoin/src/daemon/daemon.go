@@ -52,8 +52,6 @@ var (
 	// ErrDisconnectOtherError this is returned when a seemingly impossible error is encountered
 	// e.g. net.Conn.Addr() returns an invalid ip:port
 	ErrDisconnectOtherError gnet.DisconnectReason = errors.New("Incomprehensible error")
-	// ErrDisConnectWrongPort invalid peer, which has wrong node port number
-	ErrDisconnectWrongPort gnet.DisconnectReason = errors.New("Wrong node port")
 
 	logger = logging.MustGetLogger("daemon")
 )
@@ -597,11 +595,11 @@ func (dm *Daemon) connectToPeer(p pex.Peer) error {
 
 	logger.Debug("Trying to connect to %s", p.Addr)
 	dm.pendingConnections.Add(p.Addr, p)
-	go func(addr string) {
-		if err := dm.Pool.Pool.Connect(addr); err != nil {
-			dm.connectionErrors <- ConnectionError{addr, err}
+	go func() {
+		if err := dm.Pool.Pool.Connect(p.Addr); err != nil {
+			dm.connectionErrors <- ConnectionError{p.Addr, err}
 		}
-	}(p.Addr)
+	}()
 	return nil
 }
 
@@ -646,14 +644,12 @@ func (dm *Daemon) connectToRandomPeer() {
 		if p.HasIncomingPort {
 			// Try to connect the peer if it's ip:mirror does not exist
 			if _, exist := dm.getMirrorPort(p.Addr, dm.Messages.Mirror); !exist {
-				fmt.Println(p.Addr)
 				dm.connectToPeer(p)
 				continue
 			}
 		} else {
 			// Try to connect to the peer if we don't know whether the peer have public port
 			dm.connectToPeer(p)
-			fmt.Println(p.Addr)
 		}
 	}
 
