@@ -490,6 +490,7 @@ func configureDaemon(c *Config) daemon.Config {
 	dc := daemon.NewConfig()
 	dc.Pex.DataDirectory = c.DataDirectory
 	dc.Pex.Disabled = c.DisablePEX
+	dc.Pex.Port = c.Port
 	dc.Pex.Max = c.PeerlistSize
 	dc.Pex.DownloadPeerList = c.DownloadPeerList
 	dc.Pex.PeerListURL = c.PeerListURL
