@@ -1,4 +1,3 @@
-![suncoin logo](https://user-images.githubusercontent.com/26845312/32426705-d95cb988-c281-11e7-9463-a3fce8076a72.png)
 
 # Suncoin
 
@@ -19,7 +18,6 @@ Suncoin is a next-generation cryptocurrency that is built on Skyledger blockchai
     - [Run suncoin from the command line](#run-suncoin-from-the-command-line)
     - [Show suncoin node options](#show-suncoin-node-options)
     - [Run suncoin with options](#run-suncoin-with-options)
-    - [Docker image](#docker-image)
 - [API Documentation](#api-documentation)
     - [Wallet REST API](#wallet-rest-api)
     - [JSON-RPC 2.0 API](#json-rpc-20-api)
