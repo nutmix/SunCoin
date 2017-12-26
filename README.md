@@ -1,23 +1,13 @@
-![skycoin logo](https://user-images.githubusercontent.com/26845312/32426705-d95cb988-c281-11e7-9463-a3fce8076a72.png)
+![suncoin logo](https://user-images.githubusercontent.com/26845312/32426705-d95cb988-c281-11e7-9463-a3fce8076a72.png)
 
-# Skycoin
+# Suncoin
 
-[![Build Status](https://travis-ci.org/skycoin/skycoin.svg)](https://travis-ci.org/skycoin/skycoin)
-[![GoDoc](https://godoc.org/github.com/skycoin/skycoin?status.svg)](https://godoc.org/github.com/skycoin/skycoin)
-[![Go Report Card](https://goreportcard.com/badge/github.com/skycoin/skycoin)](https://goreportcard.com/report/github.com/skycoin/skycoin)
-
-Skycoin is a next-generation cryptocurrency.
-
-Skycoin improves on Bitcoin in too many ways to be addressed here.
-
-Skycoin is a small part of OP Redecentralize and OP Darknet Plan.
+Suncoin is a next-generation cryptocurrency that is built on Skyledger blockchain platform.
 
 ## Links
 
-* [skycoin.net](https://www.skycoin.net)
-* [Skycoin Blog](https://blog.skycoin.net)
-* [Skycoin Blockchain Explorer](https://explorer.skycoin.net)
-* [Skycoin Distribution Event](https://event.skycoin.net)
+* [solarbankers.com](https://https://solarbankers.com/)
+* [Suncoin Blockchain Explorer](http://119.23.23.184:8001/app/blocks)
 
 ## Table of Contents
 
@@ -25,15 +15,15 @@ Skycoin is a small part of OP Redecentralize and OP Darknet Plan.
 
 - [Installation](#installation)
     - [Go 1.9+ Installation and Setup](#go-19-installation-and-setup)
-    - [Go get skycoin](#go-get-skycoin)
-    - [Run Skycoin from the command line](#run-skycoin-from-the-command-line)
-    - [Show Skycoin node options](#show-skycoin-node-options)
-    - [Run Skycoin with options](#run-skycoin-with-options)
+    - [Go get suncoin](#go-get-suncoin)
+    - [Run suncoin from the command line](#run-suncoin-from-the-command-line)
+    - [Show suncoin node options](#show-suncoin-node-options)
+    - [Run suncoin with options](#run-suncoin-with-options)
     - [Docker image](#docker-image)
 - [API Documentation](#api-documentation)
     - [Wallet REST API](#wallet-rest-api)
     - [JSON-RPC 2.0 API](#json-rpc-20-api)
-    - [Skycoin command line interface](#skycoin-command-line-interface)
+    - [suncoin command line interface](#suncoin-command-line-interface)
 - [Contributing a node to the network](#contributing-a-node-to-the-network)
 - [Development](#development)
     - [Modules](#modules)
@@ -53,41 +43,37 @@ Skycoin is a small part of OP Redecentralize and OP Darknet Plan.
 
 [Golang 1.9+ Installation/Setup](./Installation.md)
 
-### Go get skycoin
+### Go get suncoin
 
 ```sh
-go get github.com/skycoin/skycoin/...
+go get github.com/ShanghaiKuaibei/suncoin/...
 ```
 
-This will download `github.com/skycoin/skycoin` to `$GOPATH/src/github.com/skycoin/skycoin`.
+This will download `github.com/ShanghaiKuaibei/suncoin` to `$GOPATH/src/github.com/ShanghaiKuaibei/suncoin`.
 
-You can also clone the repo directly with `git clone https://github.com/skycoin/skycoin`,
-but it must be cloned to this path: `$GOPATH/src/github.com/skycoin/skycoin`.
+You can also clone the repo directly with `git clone https://github.com/ShanghaiKuaibei/suncoin`,
+but it must be cloned to this path: `$GOPATH/src/github.com/ShanghaiKuaibei/suncoin`.
 
-### Run Skycoin from the command line
+### Run Suncoin from the command line
 
 ```sh
-cd $GOPATH/src/github.com/skycoin/skycoin
+cd $GOPATH/src/github.com/ShanghaiKuaibei/suncoin
 make run
 ```
 
-### Show Skycoin node options
+### Show Suncoin node options
 
 ```sh
-cd $GOPATH/src/github.com/skycoin/skycoin
+cd $GOPATH/src/github.com/ShanghaiKuaibei/suncoin
 make run-help
 ```
 
-### Run Skycoin with options
+### Run Suncoin with options
 
 ```sh
-cd $GOPATH/src/github.com/skycoin/skycoin
+cd $GOPATH/src/github.com/ShanghaiKuaibei/suncoin
 make ARGS="--launch-browser=false" run
 ```
-
-### Docker image
-
-A Dockerfile is available at https://github.com/skycoin/docker-img
 
 ## API Documentation
 
@@ -99,15 +85,9 @@ A Dockerfile is available at https://github.com/skycoin/docker-img
 
 [JSON-RPC 2.0 README](src/api/webrpc/README.md).
 
-### Skycoin command line interface
+### Suncoin command line interface
 
 [CLI command API](cmd/cli/README.md).
-
-## Contributing a node to the network
-
-Add your node's ip:port to the [peers.txt](./peers.txt) file.
-This file will be periodically uploaded to https://downloads.skycoin.net/blockchain/peers.txt
-and used to seed client with peers.
 
 ## Development
 
