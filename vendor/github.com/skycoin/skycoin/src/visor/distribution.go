@@ -23,6 +23,10 @@ const (
 	UnlockTimeInterval uint64 = 60 * 60 * 24 * 365 // 1 year
 )
 
+var temporaryLockedAddresses = []string{
+	"KZULDtdtgSqhUzvVJLBhscFaXGHdVHZ9TU",
+}
+
 func init() {
 	if MaxCoinSupply%DistributionAddressesTotal != 0 {
 		panic("MaxCoinSupply should be perfectly divisible by DistributionAddressesTotal")
@@ -68,6 +72,9 @@ func GetLockedDistributionAddresses() []string {
 	for i := range distributionAddresses[InitialUnlockedCount:] {
 		addrs[i] = distributionAddresses[InitialUnlockedCount+uint64(i)]
 	}
+
+	addrs = append(addrs, temporaryLockedAddresses[:]...)
+
 	return addrs
 }
 
