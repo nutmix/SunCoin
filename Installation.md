@@ -13,7 +13,7 @@ Then, let's install go's latest version.
 brew install go
 ```
 
-Lastly, let's install Mercurial and Bazaar
+Lastly, let's install Mercurial and Bazaar.
 
 ```sh
 brew install mercurial bzr
